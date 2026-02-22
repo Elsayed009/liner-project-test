@@ -4,6 +4,7 @@
 #include <cstdlib>
 using namespace std;
 
+// represents one equation like 2x1 + 3x2 = 10
 struct Equation {
     string* varNames;
     float*  varCoeffs;
@@ -11,12 +12,14 @@ struct Equation {
     int     arrayCapacity;
     float   rightHandSide;
 
+    // start with a small array and grow it if needed
     Equation() : varCount(0), arrayCapacity(10), rightHandSide(0) {
         varNames  = new string[arrayCapacity];
         varCoeffs = new float[arrayCapacity];
         for (int i = 0; i < arrayCapacity; i++) varCoeffs[i] = 0;
     }
 
+    // copy constructor — needed because we have heap arrays inside
     Equation(const Equation& other) : varCount(other.varCount), arrayCapacity(other.arrayCapacity), rightHandSide(other.rightHandSide) {
         varNames  = new string[arrayCapacity];
         varCoeffs = new float[arrayCapacity];
@@ -26,13 +29,14 @@ struct Equation {
         }
     }
 
+    // assignment operator — same reason as copy constructor
     Equation& operator=(const Equation& other) {
         if (this == &other) return *this;
         delete[] varNames;
         delete[] varCoeffs;
-        varCount  = other.varCount;
-        arrayCapacity  = other.arrayCapacity;
-        rightHandSide  = other.rightHandSide;
+        varCount      = other.varCount;
+        arrayCapacity = other.arrayCapacity;
+        rightHandSide = other.rightHandSide;
         varNames  = new string[arrayCapacity];
         varCoeffs = new float[arrayCapacity];
         for (int i = 0; i < arrayCapacity; i++) {
@@ -42,11 +46,13 @@ struct Equation {
         return *this;
     }
 
+    // free heap memory when the object is destroyed
     ~Equation() {
         delete[] varNames;
         delete[] varCoeffs;
     }
 
+    // double the array size when it gets full
     void expandArrays() {
         arrayCapacity *= 2;
         string* newNames  = new string[arrayCapacity];
@@ -61,12 +67,14 @@ struct Equation {
         varCoeffs = newCoeffs;
     }
 
+    // returns the index of a variable, or -1 if not found
     int findVar(const string& name) const {
         for (int i = 0; i < varCount; i++)
             if (varNames[i] == name) return i;
         return -1;
     }
 
+    // adds to a variable's coefficient — creates it if it doesn't exist yet
     void addToCoeff(const string& name, float value) {
         int index = findVar(name);
         if (index == -1) {
@@ -79,25 +87,28 @@ struct Equation {
         }
     }
 
+    // returns the coefficient of a variable, or 0 if it's not in this equation
     float getCoeff(const string& name) const {
         int index = findVar(name);
         return (index == -1) ? 0 : varCoeffs[index];
     }
 
+    // sort variables alphabetically so the equation prints in the right order
     void sortAlphabetically() {
         for (int i = 0; i < varCount - 1; i++)
             for (int j = 0; j < varCount - i - 1; j++)
                 if (varNames[j] > varNames[j+1]) {
-                    string tempName       = varNames[j];
-                    varNames[j]      = varNames[j+1];
-                    varNames[j+1]    = tempName;
-                    float tempCoeff       = varCoeffs[j];
-                    varCoeffs[j]     = varCoeffs[j+1];
-                    varCoeffs[j+1]   = tempCoeff;
+                    string tempName    = varNames[j];
+                    varNames[j]        = varNames[j+1];
+                    varNames[j+1]      = tempName;
+                    float tempCoeff    = varCoeffs[j];
+                    varCoeffs[j]       = varCoeffs[j+1];
+                    varCoeffs[j+1]     = tempCoeff;
                 }
     }
 };
 
+// converts an equation to a printable string like "2x1+3x2=10"
 string equationToString(Equation& eq) {
     eq.sortAlphabetically();
     ostringstream output;
@@ -106,6 +117,7 @@ string equationToString(Equation& eq) {
         float coeff = eq.varCoeffs[i];
         if (coeff == 0) continue;
         if (!isFirstTerm && coeff > 0) output << "+";
+        // print as integer if possible to avoid "2.0x1" style output
         if (coeff == (int)coeff) output << (int)coeff;
         else                     output << coeff;
         output << eq.varNames[i];
@@ -118,15 +130,19 @@ string equationToString(Equation& eq) {
     return output.str();
 }
 
+// parses the left side of an equation string and fills the Equation object
 void parseLeftSide(const string& leftSide, Equation& eq) {
     string input = leftSide;
     if (input.empty()) return;
+
+    // add a leading '+' so every term starts with a sign — makes splitting easier
     if (input[0] != '-') input = "+" + input;
 
-    string* terms    = new string[200];
+    string* terms     = new string[200];
     int     termCount = 0;
     string  currentTerm = "";
 
+    // split into individual terms by finding + and - signs
     for (int i = 0; i < (int)input.size(); i++) {
         if ((input[i] == '+' || input[i] == '-') && i != 0) {
             if (!currentTerm.empty()) terms[termCount++] = currentTerm;
@@ -137,11 +153,14 @@ void parseLeftSide(const string& leftSide, Equation& eq) {
 
     for (int t = 0; t < termCount; t++) {
         string& term = terms[t];
+
+        // find where the variable name starts (first lowercase letter)
         int letterPos = -1;
         for (int i = 0; i < (int)term.size(); i++)
             if (term[i] >= 'a' && term[i] <= 'z') { letterPos = i; break; }
 
         if (letterPos == -1) {
+            // no letters means it's a constant — move it to the right side
             eq.rightHandSide -= atof(term.c_str());
         } else {
             string coeffPart = term.substr(0, letterPos);
@@ -159,8 +178,9 @@ void parseLeftSide(const string& leftSide, Equation& eq) {
 Equation* allEquations;
 int       equationCount;
 
-int collectAllVariables(string*& outVars) {
-    int     capacity  = 10;
+// collects all unique variable names across all equations, sorted alphabetically
+int collectAllVars(string*& outVars) {
+    int     capacity   = 10;
     string* uniqueVars = new string[capacity];
     int     uniqueCount = 0;
 
@@ -181,6 +201,7 @@ int collectAllVariables(string*& outVars) {
             }
         }
 
+    // sort alphabetically
     for (int i = 0; i < uniqueCount - 1; i++)
         for (int j = 0; j < uniqueCount - i - 1; j++)
             if (uniqueVars[j] > uniqueVars[j+1]) { string t = uniqueVars[j]; uniqueVars[j] = uniqueVars[j+1]; uniqueVars[j+1] = t; }
@@ -189,6 +210,7 @@ int collectAllVariables(string*& outVars) {
     return uniqueCount;
 }
 
+// recursive cofactor expansion to compute the determinant
 float calcDeterminant(float** matrix, int size) {
     if (size == 1) return matrix[0][0];
     if (size == 2) return matrix[0][0]*matrix[1][1] - matrix[0][1]*matrix[1][0];
@@ -196,6 +218,7 @@ float calcDeterminant(float** matrix, int size) {
     float** subMatrix = new float*[size-1];
     for (int i = 0; i < size-1; i++) subMatrix[i] = new float[size-1];
     for (int col = 0; col < size; col++) {
+        // build the sub-matrix by removing row 0 and the current column
         for (int row = 1; row < size; row++) {
             int subCol = 0;
             for (int c = 0; c < size; c++)
@@ -208,6 +231,7 @@ float calcDeterminant(float** matrix, int size) {
     return result;
 }
 
+// builds the coefficient matrix — if replaceVar is set, that column is replaced with the right-hand side values (Cramer's rule)
 float** buildCoeffMatrix(string* varNames, int size, string replaceVar = "") {
     float** matrix = new float*[equationCount];
     for (int row = 0; row < equationCount; row++) {
@@ -225,6 +249,7 @@ void freeMatrix(float** matrix) {
     delete[] matrix;
 }
 
+// prints a float as an integer if it has no decimal part
 void printNumber(float value) {
     if (value == (int)value) cout << (int)value;
     else                     cout << value;
@@ -234,11 +259,12 @@ int main() {
     cin >> equationCount;
     allEquations = new Equation[equationCount];
 
+    // read each equation line and parse it
     for (int i = 0; i < equationCount; i++) {
         string line;
         cin >> ws;
         getline(cin, line);
-        size_t equalSign             = line.find('=');
+        size_t equalSign              = line.find('=');
         allEquations[i].rightHandSide = atof(line.substr(equalSign+1).c_str());
         parseLeftSide(line.substr(0, equalSign), allEquations[i]);
         allEquations[i].sortAlphabetically();
@@ -250,7 +276,7 @@ int main() {
 
         else if (command == "num_vars") {
             string* varList = nullptr;
-            int count = collectAllVariables(varList);
+            int count = collectAllVars(varList);
             cout << count << endl;
             delete[] varList;
         }
@@ -289,16 +315,18 @@ int main() {
         else if (command == "substitute") {
             string targetVar; int eqIndex, subIndex;
             cin >> targetVar >> eqIndex >> subIndex;
-            Equation& sourceEq = allEquations[eqIndex-1];
-            Equation& subEq    = allEquations[subIndex-1];
-            float coeffInSource = sourceEq.getCoeff(targetVar);
-            float coeffInSub    = subEq.getCoeff(targetVar);
+            Equation& sourceEq      = allEquations[eqIndex-1];
+            Equation& subEq         = allEquations[subIndex-1];
+            float coeffInSource     = sourceEq.getCoeff(targetVar);
+            float coeffInSub        = subEq.getCoeff(targetVar);
             if (coeffInSource == 0 || coeffInSub == 0) { cout << equationToString(sourceEq) << endl; continue; }
+            // scale factor makes the target variable cancel out when subtracted
             float scaleFactor = coeffInSource / coeffInSub;
             Equation result   = sourceEq;
             result.rightHandSide -= scaleFactor * subEq.rightHandSide;
             for (int k = 0; k < subEq.varCount; k++)
                 result.addToCoeff(subEq.varNames[k], -scaleFactor * subEq.varCoeffs[k]);
+            // force it to exactly 0 to avoid floating point leftovers
             int idx = result.findVar(targetVar);
             if (idx != -1) result.varCoeffs[idx] = 0;
             cout << equationToString(result) << endl;
@@ -308,10 +336,10 @@ int main() {
             string rest, replaceVar = "";
             getline(cin, rest);
             stringstream ss(rest);
-            ss >> replaceVar;
+            ss >> replaceVar;  // empty if user just typed "D" with no variable
 
             string* varList = nullptr;
-            int size = collectAllVariables(varList);
+            int size = collectAllVars(varList);
             float** matrix = buildCoeffMatrix(varList, size, replaceVar);
             for (int row = 0; row < equationCount; row++) {
                 for (int col = 0; col < size; col++) {
@@ -326,7 +354,7 @@ int main() {
 
         else if (command == "D_value") {
             string* varList = nullptr;
-            int size = collectAllVariables(varList);
+            int size = collectAllVars(varList);
             float** matrix = buildCoeffMatrix(varList, size);
             printNumber(calcDeterminant(matrix, size));
             cout << endl;
@@ -336,12 +364,13 @@ int main() {
 
         else if (command == "solve") {
             string* varList = nullptr;
-            int size = collectAllVariables(varList);
-            float** matrix = buildCoeffMatrix(varList, size);
-            float mainDet  = calcDeterminant(matrix, size);
+            int size = collectAllVars(varList);
+            float** matrix  = buildCoeffMatrix(varList, size);
+            float   mainDet = calcDeterminant(matrix, size);
             if (mainDet == 0) {
                 cout << "No Solution" << endl;
             } else {
+                // Cramer's rule: value of each variable = det(matrix with that column replaced) / det(main matrix)
                 for (int k = 0; k < size; k++) {
                     float** cramersMatrix = buildCoeffMatrix(varList, size, varList[k]);
                     cout << varList[k] << "=";

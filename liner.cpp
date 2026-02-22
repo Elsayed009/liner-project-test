@@ -15,12 +15,6 @@
 using namespace std;  // so we don't have to write std::cout every time
 
 
-// ============================================================
-//  SECTION 1: STRING UTILITY FUNCTIONS
-//  These functions replace library functions we are NOT allowed
-//  to use (like atof from <cstdlib> and ostringstream from <sstream>)
-// ============================================================
-
 /*
  * myAtof - converts a string like "3.5" or "-2" into a float number
  *
@@ -120,10 +114,6 @@ string floatToStr(float v) {
     return res;
 }
 
-
-// ============================================================
-//  SECTION 2: CONSTANTS AND DATA STRUCTURES
-// ============================================================
 
 /*
  * We define maximum sizes for arrays.
@@ -261,10 +251,6 @@ struct Equation {
 };
 
 
-// ============================================================
-//  SECTION 3: PRINTING AN EQUATION
-// ============================================================
-
 /*
  * printEquation - converts an Equation object into a readable string.
  *
@@ -308,10 +294,6 @@ string printEquation(Equation &eq) {
     return out;
 }
 
-
-// ============================================================
-//  SECTION 4: PARSING (READING) AN EQUATION FROM A STRING
-// ============================================================
 
 /*
  * parseLeft - reads the left side of an equation and fills the Equation struct.
@@ -388,10 +370,6 @@ void parseLeft(const string &left, Equation &eq) {
 }
 
 
-// ============================================================
-//  SECTION 5: GLOBAL VARIABLES
-// ============================================================
-
 /*
  * We store all equations in a dynamically allocated array on the heap.
  *
@@ -448,10 +426,6 @@ int getAllVars(string *vars) {
     return cnt;
 }
 
-
-// ============================================================
-//  SECTION 6: DETERMINANT CALCULATION
-// ============================================================
 
 /*
  * determinant - calculates the determinant of a square matrix.
@@ -517,10 +491,6 @@ float determinant(float **mat, int sz) {
     return det;
 }
 
-
-// ============================================================
-//  SECTION 7: MAIN FUNCTION - READ INPUT AND HANDLE COMMANDS
-// ============================================================
 
 int main() {
     // --- Read number of equations ---

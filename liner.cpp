@@ -1,156 +1,227 @@
 #include <iostream>
 #include <string>
-#include <sstream>
-#include <vector>
-#include <map>
-#include <cstdlib>
-#include <cmath>
 using namespace std;
 
-struct Equation {
-    map<string, float> coeffs;
-    float constant;
-};
+// ========== String Utilities ==========
 
-// طباعة المعادلة - المعامل 1 و-1 بيتطبعوا كـ 1x و-1x
-string printEquation(const Equation &eq) {
-    ostringstream out;
-    bool first = true;
-    for (auto &p : eq.coeffs) {
-        float c = p.second;
-        if (c == 0) continue;
-        if (!first && c > 0) out << "+";
-        // نطبع المعامل دايما حتى لو 1 أو -1
-        // لكن بنتخلص من الـ .0 في حالة أرقام صحيحة
-        if (c == (int)c) {
-            out << (int)c;
-        } else {
-            out << c;
-        }
-        out << p.first;
-        first = false;
+float myAtof(const string &s) {
+    float result = 0;
+    float dec = 0;
+    bool negative = false;
+    bool afterDot = false;
+    float decPlace = 0.1f;
+    int i = 0;
+    if (!s.empty() && s[0] == '-') { negative = true; i = 1; }
+    else if (!s.empty() && s[0] == '+') { i = 1; }
+    for (; i < (int)s.size(); i++) {
+        if (s[i] == '.') { afterDot = true; continue; }
+        if (!afterDot) result = result * 10 + (s[i] - '0');
+        else { dec += (s[i] - '0') * decPlace; decPlace *= 0.1f; }
     }
-    if (first) out << "0"; // لو مفيش حدود
-    out << "=";
-    if (eq.constant == (int)eq.constant) out << (int)eq.constant;
-    else out << eq.constant;
-    return out.str();
+    result += dec;
+    return negative ? -result : result;
 }
 
-// حساب المحدد
-float determinant(vector<vector<float>> mat) {
-    int n = mat.size();
-    if (n == 1) return mat[0][0];
-    if (n == 2) return mat[0][0]*mat[1][1] - mat[0][1]*mat[1][0];
+string floatToStr(float v) {
+    if (v < 0) return "-" + floatToStr(-v);
+    int intPart = (int)v;
+    float frac = v - intPart;
+    string res = "";
+    int tmp = intPart;
+    string rev = "";
+    if (tmp == 0) rev = "0";
+    while (tmp > 0) { rev += (char)('0' + tmp % 10); tmp /= 10; }
+    for (int i = rev.size()-1; i >= 0; i--) res += rev[i];
+    if (frac > 0.0001f) {
+        res += ".";
+        for (int i = 0; i < 4; i++) {
+            frac *= 10;
+            res += (char)('0' + (int)frac);
+            frac -= (int)frac;
+            if (frac < 0.0001f) break;
+        }
+    }
+    return res;
+}
+
+// ========== Data Structures ==========
+
+const int MAXVARS = 100;
+const int MAXEQS  = 100;
+
+struct Equation {
+    string varNames[MAXVARS];
+    float  coeffs[MAXVARS];
+    int    numVars;
+    float  constant;
+
+    Equation() : numVars(0), constant(0) {
+        for (int i = 0; i < MAXVARS; i++) coeffs[i] = 0;
+    }
+
+    int findVar(const string &v) const {
+        for (int i = 0; i < numVars; i++)
+            if (varNames[i] == v) return i;
+        return -1;
+    }
+
+    void addCoeff(const string &v, float c) {
+        int idx = findVar(v);
+        if (idx == -1) { varNames[numVars] = v; coeffs[numVars] = c; numVars++; }
+        else coeffs[idx] += c;
+    }
+
+    float getCoeff(const string &v) const {
+        int idx = findVar(v);
+        return (idx == -1) ? 0 : coeffs[idx];
+    }
+
+    void setCoeff(const string &v, float c) {
+        int idx = findVar(v);
+        if (idx == -1) { varNames[numVars] = v; coeffs[numVars] = c; numVars++; }
+        else coeffs[idx] = c;
+    }
+
+    void sortVars() {
+        for (int i = 0; i < numVars-1; i++)
+            for (int j = 0; j < numVars-i-1; j++)
+                if (varNames[j] > varNames[j+1]) {
+                    string tmpN = varNames[j]; varNames[j] = varNames[j+1]; varNames[j+1] = tmpN;
+                    float  tmpC = coeffs[j];   coeffs[j]   = coeffs[j+1];   coeffs[j+1]   = tmpC;
+                }
+    }
+};
+
+// ========== Print Equation ==========
+
+string printEquation(Equation &eq) {
+    eq.sortVars();
+    string out = "";
+    bool first = true;
+    for (int i = 0; i < eq.numVars; i++) {
+        float c = eq.coeffs[i];
+        if (c == 0) continue;
+        if (!first && c > 0) out += "+";
+        if (c < 0) out += "-" + floatToStr(-c);
+        else out += floatToStr(c);
+        out += eq.varNames[i];
+        first = false;
+    }
+    if (first) out += "0";
+    out += "=";
+    if (eq.constant < 0) out += "-" + floatToStr(-eq.constant);
+    else out += floatToStr(eq.constant);
+    return out;
+}
+
+// ========== Parse ==========
+
+void parseLeft(const string &left, Equation &eq) {
+    string s = left;
+    if (s.empty()) return;
+    if (s[0] != '-') s = "+" + s;
+
+    string terms[MAXVARS*2];
+    int numTerms = 0;
+    string cur = "";
+    for (int i = 0; i < (int)s.size(); i++) {
+        if ((s[i] == '+' || s[i] == '-') && i != 0) {
+            if (!cur.empty()) terms[numTerms++] = cur;
+            cur = s[i];
+        } else cur += s[i];
+    }
+    if (!cur.empty()) terms[numTerms++] = cur;
+
+    for (int t = 0; t < numTerms; t++) {
+        string &term = terms[t];
+        int xPos = -1;
+        for (int i = 0; i < (int)term.size(); i++) {
+            if (term[i] >= 'a' && term[i] <= 'z') { xPos = i; break; }
+        }
+        if (xPos == -1) {
+            eq.constant -= myAtof(term);
+        } else {
+            string coeffStr = term.substr(0, xPos);
+            string var = term.substr(xPos);
+            float coeff;
+            if (coeffStr.empty() || coeffStr == "+") coeff = 1;
+            else if (coeffStr == "-") coeff = -1;
+            else coeff = myAtof(coeffStr);
+            eq.addCoeff(var, coeff);
+        }
+    }
+}
+
+// ========== Global ==========
+
+Equation *equations;
+int n;
+
+int getAllVars(string *vars) {
+    string tmp[MAXVARS];
+    int cnt = 0;
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < equations[i].numVars; j++) {
+            bool found = false;
+            for (int k = 0; k < cnt; k++)
+                if (tmp[k] == equations[i].varNames[j]) { found = true; break; }
+            if (!found) tmp[cnt++] = equations[i].varNames[j];
+        }
+    for (int i = 0; i < cnt-1; i++)
+        for (int j = 0; j < cnt-i-1; j++)
+            if (tmp[j] > tmp[j+1]) { string t = tmp[j]; tmp[j] = tmp[j+1]; tmp[j+1] = t; }
+    for (int i = 0; i < cnt; i++) vars[i] = tmp[i];
+    return cnt;
+}
+
+// ========== Determinant ==========
+
+float determinant(float **mat, int sz) {
+    if (sz == 1) return mat[0][0];
+    if (sz == 2) return mat[0][0]*mat[1][1] - mat[0][1]*mat[1][0];
     float det = 0;
-    for (int p = 0; p < n; p++) {
-        vector<vector<float>> submat(n-1, vector<float>(n-1));
-        for (int i = 1; i < n; i++) {
+    float **sub = new float*[sz-1];
+    for (int i = 0; i < sz-1; i++) sub[i] = new float[sz-1];
+    for (int p = 0; p < sz; p++) {
+        for (int i = 1; i < sz; i++) {
             int col = 0;
-            for (int j = 0; j < n; j++) {
+            for (int j = 0; j < sz; j++) {
                 if (j == p) continue;
-                submat[i-1][col] = mat[i][j];
-                col++;
+                sub[i-1][col++] = mat[i][j];
             }
         }
-        det += mat[0][p] * determinant(submat) * (p%2==0 ? 1 : -1);
+        det += mat[0][p] * determinant(sub, sz-1) * (p%2==0 ? 1 : -1);
     }
+    for (int i = 0; i < sz-1; i++) delete[] sub[i];
+    delete[] sub;
     return det;
 }
 
-// parse term واحد (مثل 2x1 أو -3x2 أو x3 أو -x1)
-// بيرجع variable name والـ coefficient
-// لو مش متغير بيرجع "" والقيمة العددية
-pair<string, float> parseTerm(const string &term) {
-    size_t xPos = string::npos;
-    // دور على أول حرف حروف
-    for (size_t i = 0; i < term.size(); i++) {
-        if (isalpha(term[i])) {
-            xPos = i;
-            break;
-        }
-    }
-    if (xPos == string::npos) {
-        // constant term
-        return {"", atof(term.c_str())};
-    }
-    string coeffStr = term.substr(0, xPos);
-    string var = term.substr(xPos);
-    float coeff;
-    if (coeffStr.empty() || coeffStr == "+") coeff = 1;
-    else if (coeffStr == "-") coeff = -1;
-    else coeff = atof(coeffStr.c_str());
-    return {var, coeff};
-}
-
-// parse الجانب الأيسر من المعادلة مع دعم الطرح
-void parseLeft(const string &left, map<string,float> &coeffs, float &constant) {
-    // نقسم على + و-، مع الحفاظ على الإشارة
-    string s = left;
-    // نضيف + في البداية لو مبدأش بـ -
-    if (s.empty()) return;
-    if (s[0] != '-') s = "+" + s;
-    
-    vector<string> terms;
-    string cur = "";
-    for (size_t i = 0; i < s.size(); i++) {
-        if ((s[i] == '+' || s[i] == '-') && i != 0) {
-            if (!cur.empty()) terms.push_back(cur);
-            cur = s[i];
-        } else {
-            cur += s[i];
-        }
-    }
-    if (!cur.empty()) terms.push_back(cur);
-    
-    for (auto &t : terms) {
-        auto p = parseTerm(t);
-        if (p.first.empty()) {
-            constant -= p.second; // ننقل الثابت للجانب الأيمن
-        } else {
-            coeffs[p.first] += p.second;
-        }
-    }
-}
+// ========== Main ==========
 
 int main() {
-    int n;
     cin >> n;
-    vector<Equation> equations(n);
+    equations = new Equation[n];
 
-    // قراءة المعادلات
     for (int i = 0; i < n; i++) {
         string line;
         cin >> ws;
         getline(cin, line);
-
-        Equation eq;
         size_t pos = line.find('=');
-        string left = line.substr(0, pos);
+        string left  = line.substr(0, pos);
         string right = line.substr(pos+1);
-        eq.constant = atof(right.c_str());
-
-        parseLeft(left, eq.coeffs, eq.constant);
-        equations[i] = eq;
+        equations[i].constant = myAtof(right);
+        parseLeft(left, equations[i]);
+        equations[i].sortVars();
     }
 
-    // جمع كل المتغيرات الموجودة في كل المعادلات
-    auto getAllVars = [&]() {
-        map<string,bool> varMap;
-        for (auto &eq : equations)
-            for (auto &p : eq.coeffs) varMap[p.first] = true;
-        vector<string> vars;
-        for (auto &p : varMap) vars.push_back(p.first);
-        return vars;
-    };
-
-    // تنفيذ الأوامر
     string command;
     while (cin >> command) {
         if (command == "quit") break;
 
         else if (command == "num_vars") {
-            cout << getAllVars().size() << endl;
+            string vars[MAXVARS];
+            cout << getAllVars(vars) << endl;
         }
 
         else if (command == "equation") {
@@ -160,107 +231,68 @@ int main() {
 
         else if (command == "column") {
             string var; cin >> var;
-            for (auto &eq : equations) {
-                auto it = eq.coeffs.find(var);
-                float val = (it != eq.coeffs.end()) ? it->second : 0;
-                if (val == (int)val) cout << (int)val << endl;
-                else cout << val << endl;
+            for (int i = 0; i < n; i++) {
+                float v = equations[i].getCoeff(var);
+                if (v == (int)v) cout << (int)v << endl;
+                else cout << v << endl;
             }
         }
 
         else if (command == "add") {
-            int i,j; cin >> i >> j;
-            Equation res;
-            res.constant = equations[i-1].constant + equations[j-1].constant;
-            res.coeffs = equations[i-1].coeffs;
-            for (auto &p : equations[j-1].coeffs)
-                res.coeffs[p.first] += p.second;
+            int i, j; cin >> i >> j;
+            Equation res = equations[i-1];
+            res.constant += equations[j-1].constant;
+            for (int k = 0; k < equations[j-1].numVars; k++)
+                res.addCoeff(equations[j-1].varNames[k], equations[j-1].coeffs[k]);
             cout << printEquation(res) << endl;
         }
 
         else if (command == "subtract") {
-            int i,j; cin >> i >> j;
-            Equation res;
-            res.constant = equations[i-1].constant - equations[j-1].constant;
-            res.coeffs = equations[i-1].coeffs;
-            for (auto &p : equations[j-1].coeffs) {
-                res.coeffs[p.first] -= p.second;
-            }
-            // نضيف أي متغير في j مش موجود في i بقيمة 0
-            for (auto &p : equations[j-1].coeffs) {
-                if (res.coeffs.find(p.first) == res.coeffs.end())
-                    res.coeffs[p.first] = -p.second;
-            }
+            int i, j; cin >> i >> j;
+            Equation res = equations[i-1];
+            res.constant -= equations[j-1].constant;
+            for (int k = 0; k < equations[j-1].numVars; k++)
+                res.addCoeff(equations[j-1].varNames[k], -equations[j-1].coeffs[k]);
             cout << printEquation(res) << endl;
         }
 
         else if (command == "substitute") {
-            // substitute x2 1 3
-            // يستبدل x2 في معادلة 1 بمعادلة 3
             string var; int eqIdx, subIdx;
             cin >> var >> eqIdx >> subIdx;
-            
             Equation &eq1 = equations[eqIdx-1];
             Equation &eq3 = equations[subIdx-1];
-            
-            // لو x2 مش موجود في eq1، نطبعها كما هي
-            if (eq1.coeffs.find(var) == eq1.coeffs.end() || eq1.coeffs[var] == 0) {
-                cout << printEquation(eq1) << endl;
-                continue;
-            }
-            
-            // معامل var في eq1
-            float c1 = eq1.coeffs[var];
-            // معامل var في eq3
-            float c3 = 0;
-            if (eq3.coeffs.find(var) != eq3.coeffs.end())
-                c3 = eq3.coeffs[var];
-            
-            if (c3 == 0) {
-                // مينفعش نحل
-                cout << printEquation(eq1) << endl;
-                continue;
-            }
-            
-            // نضرب eq3 في (c1/c3) ونطرحها من eq1
+            float c1 = eq1.getCoeff(var);
+            float c3 = eq3.getCoeff(var);
+            if (c1 == 0) { cout << printEquation(eq1) << endl; continue; }
+            if (c3 == 0) { cout << printEquation(eq1) << endl; continue; }
             float factor = c1 / c3;
-            Equation res;
-            res.coeffs = eq1.coeffs;
-            res.constant = eq1.constant - factor * eq3.constant;
-            for (auto &p : eq3.coeffs) {
-                res.coeffs[p.first] -= factor * p.second;
-            }
-            // نشيل var اللي اتعملتله substitute (المفروض يبقى 0)
-            res.coeffs.erase(var);
-            
+            Equation res = eq1;
+            res.constant -= factor * eq3.constant;
+            for (int k = 0; k < eq3.numVars; k++)
+                res.addCoeff(eq3.varNames[k], -factor * eq3.coeffs[k]);
+            int idx = res.findVar(var);
+            if (idx != -1) res.coeffs[idx] = 0;
             cout << printEquation(res) << endl;
         }
 
         else if (command == "D") {
-            string rest;
-            getline(cin, rest);
-            // نشوف لو في variable اسمه بعد D
-            stringstream ss(rest);
-            string var; ss >> var;
-            
-            vector<string> vars;
-            for (auto &p : equations[0].coeffs) vars.push_back(p.first);
-            
-            // لو مفيش متغيرات من equation[0]، نجيب كل المتغيرات
-            if (vars.empty()) {
-                vars = getAllVars();
-            }
-            
-            int sz = vars.size();
-            vector<vector<float>> mat(n, vector<float>(sz, 0));
+            string rest; getline(cin, rest);
+            string var = "";
+            int s = 0;
+            while (s < (int)rest.size() && rest[s] == ' ') s++;
+            if (s < (int)rest.size()) var = rest.substr(s);
+
+            string vars[MAXVARS];
+            int sz = getAllVars(vars);
+
+            float **mat = new float*[n];
             for (int i = 0; i < n; i++) {
+                mat[i] = new float[sz];
                 for (int j = 0; j < sz; j++) {
                     if (!var.empty() && vars[j] == var)
                         mat[i][j] = equations[i].constant;
-                    else {
-                        auto it = equations[i].coeffs.find(vars[j]);
-                        mat[i][j] = (it != equations[i].coeffs.end()) ? it->second : 0;
-                    }
+                    else
+                        mat[i][j] = equations[i].getCoeff(vars[j]);
                 }
             }
             for (int i = 0; i < n; i++) {
@@ -272,50 +304,61 @@ int main() {
                 }
                 cout << endl;
             }
+            for (int i = 0; i < n; i++) delete[] mat[i];
+            delete[] mat;
         }
 
         else if (command == "D_value") {
-            vector<string> vars;
-            for (auto &p : equations[0].coeffs) vars.push_back(p.first);
-            int sz = vars.size();
-            vector<vector<float>> mat(n, vector<float>(sz, 0));
-            for (int i = 0; i < n; i++)
-                for (int j = 0; j < sz; j++) {
-                    auto it = equations[i].coeffs.find(vars[j]);
-                    mat[i][j] = (it != equations[i].coeffs.end()) ? it->second : 0;
-                }
-            float det = determinant(mat);
+            string vars[MAXVARS];
+            int sz = getAllVars(vars);
+            float **mat = new float*[n];
+            for (int i = 0; i < n; i++) {
+                mat[i] = new float[sz];
+                for (int j = 0; j < sz; j++)
+                    mat[i][j] = equations[i].getCoeff(vars[j]);
+            }
+            float det = determinant(mat, sz);
             if (det == (int)det) cout << (int)det << endl;
             else cout << det << endl;
+            for (int i = 0; i < n; i++) delete[] mat[i];
+            delete[] mat;
         }
 
         else if (command == "solve") {
-            vector<string> vars;
-            for (auto &p : equations[0].coeffs) vars.push_back(p.first);
-            int sz = vars.size();
-            vector<vector<float>> mat(n, vector<float>(sz, 0));
-            for (int i = 0; i < n; i++)
-                for (int j = 0; j < sz; j++) {
-                    auto it = equations[i].coeffs.find(vars[j]);
-                    mat[i][j] = (it != equations[i].coeffs.end()) ? it->second : 0;
-                }
-            float det = determinant(mat);
+            string vars[MAXVARS];
+            int sz = getAllVars(vars);
+            float **mat = new float*[n];
+            for (int i = 0; i < n; i++) {
+                mat[i] = new float[sz];
+                for (int j = 0; j < sz; j++)
+                    mat[i][j] = equations[i].getCoeff(vars[j]);
+            }
+            float det = determinant(mat, sz);
             if (det == 0) {
                 cout << "No Solution" << endl;
             } else {
                 for (int k = 0; k < sz; k++) {
-                    vector<vector<float>> matk = mat;
-                    for (int i = 0; i < n; i++)
-                        matk[i][k] = equations[i].constant;
-                    float detk = determinant(matk);
-                    float val = detk/det;
+                    float **matk = new float*[n];
+                    for (int i = 0; i < n; i++) {
+                        matk[i] = new float[sz];
+                        for (int j = 0; j < sz; j++)
+                            matk[i][j] = (j == k) ? equations[i].constant : mat[i][j];
+                    }
+                    float detk = determinant(matk, sz);
+                    float val = detk / det;
                     cout << vars[k] << "=";
                     if (val == (int)val) cout << (int)val;
                     else cout << val;
                     cout << endl;
+                    for (int i = 0; i < n; i++) delete[] matk[i];
+                    delete[] matk;
                 }
             }
+            for (int i = 0; i < n; i++) delete[] mat[i];
+            delete[] mat;
         }
     }
+
+    delete[] equations;
     return 0;
 }
